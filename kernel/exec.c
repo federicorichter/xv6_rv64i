@@ -7,7 +7,8 @@
 #include "defs.h"
 #include "elf.h"
 
-static int loadseg(pde_t *, uint64, struct inode *, uint, uint);
+//static int loadseg(pde_t *, uint64, struct inode *, uint, uint);
+int loadseg_direct(uint64 *dest, struct inode *ip, uint offset, uint sz) ;
 
 int flags2perm(int flags)
 {
@@ -31,13 +32,13 @@ exec(char *path, char **argv)
   pagetable_t pagetable = 0, oldpagetable;
   struct proc *p = myproc();
 
-  begin_op();
+  begin_op(); // starts a transaction
 
-  if((ip = namei(path)) == 0){
+  if((ip = namei(path)) == 0){ //checks if the file exists, creates an inode and returns a pointer to it
     end_op();
     return -1;
   }
-  ilock(ip);
+  ilock(ip); //lock inode
 
   // Check ELF header
   if(readi(ip, 0, (uint64)&elf, 0, sizeof(elf)) != sizeof(elf))
@@ -50,22 +51,24 @@ exec(char *path, char **argv)
     goto bad;
 
   // Load program into memory.
-  for(i=0, off=elf.phoff; i<elf.phnum; i++, off+=sizeof(ph)){
+  for(i=0, off=elf.phoff; i<elf.phnum; i++, off+=sizeof(ph)){ //read every elf header
     if(readi(ip, 0, (uint64)&ph, off, sizeof(ph)) != sizeof(ph))
       goto bad;
     if(ph.type != ELF_PROG_LOAD)
       continue;
     if(ph.memsz < ph.filesz)
       goto bad;
-    if(ph.vaddr + ph.memsz < ph.vaddr)
+    if(ph.vaddr + ph.memsz < ph.vaddr) //checks if overflow
       goto bad;
     if(ph.vaddr % PGSIZE != 0)
       goto bad;
-    uint64 sz1;
+    /*uint64 sz1;
     if((sz1 = uvmalloc(pagetable, sz, ph.vaddr + ph.memsz, flags2perm(ph.flags))) == 0)
       goto bad;
     sz = sz1;
     if(loadseg(pagetable, ph.vaddr, ip, ph.off, ph.filesz) < 0)
+      goto bad;*/
+    if (loadseg_direct(&ph.vaddr, ip, ph.off, ph.filesz) < 0)
       goto bad;
   }
   iunlockput(ip);
@@ -144,7 +147,7 @@ exec(char *path, char **argv)
 // va must be page-aligned
 // and the pages from va to va+sz must already be mapped.
 // Returns 0 on success, -1 on failure.
-static int
+/*static int
 loadseg(pagetable_t pagetable, uint64 va, struct inode *ip, uint offset, uint sz)
 {
   uint i, n;
@@ -162,5 +165,32 @@ loadseg(pagetable_t pagetable, uint64 va, struct inode *ip, uint offset, uint sz
       return -1;
   }
   
+  return 0;
+}
+*/
+int loadseg_direct(uint64 *dest, struct inode *ip, uint offset, uint sz) {
+  uint i, n;
+  char *mem;
+
+  // Allocate memory if dest is NULL or zero.
+  if (*dest == 0) {
+    *dest = (uint64)kalloc();  // Allocate a page
+    if (*dest == 0)
+      return -1;  // Failed to allocate memory
+    memset((void *)*dest, 0, PGSIZE);  // Initialize page with zeroes
+  }
+
+  for (i = 0; i < sz; i += PGSIZE) {
+    mem = (char *)(*dest + i);  // Point to the right location in physical memory
+    if (sz - i < PGSIZE)
+      n = sz - i;
+    else
+      n = PGSIZE;
+    
+    // Read data from inode (file) and load into physical memory
+    if (readi(ip, 0, (uint64)mem, offset + i, n) != n)
+      return -1;
+  }
+
   return 0;
 }

@@ -6,6 +6,34 @@
 
 static char digits[] = "0123456789ABCDEF";
 
+#define INT_MAX 4294967295
+
+void divmod(int x, int y, int *div, int *mod) {
+    int quotient = 0, modulus = x, divisor = y;
+
+    while (divisor <= modulus && divisor <= INT_MAX/2)
+        divisor <<= 1;
+
+    while (modulus >= y) {
+        while (divisor > modulus) {
+            divisor >>= 1;
+            quotient <<= 1;
+        }
+
+        modulus -= divisor;
+        quotient++;
+    }
+
+    while (divisor != y) {
+        quotient <<= 1;
+        divisor >>= 1;
+    }
+
+    *div = quotient;
+    *mod = modulus;
+}
+
+
 static void
 putc(int fd, char c)
 {
@@ -26,11 +54,14 @@ printint(int fd, int xx, int base, int sgn)
   } else {
     x = xx;
   }
-
+  int mod;
+  int res;
   i = 0;
   do{
-    buf[i++] = digits[x % base];
-  }while((x /= base) != 0);
+    divmod(x, base, &res, &mod);
+    buf[i++] = digits[mod];
+    x = res;
+  }while(x != 0);
   if(neg)
     buf[i++] = '-';
 

@@ -15,6 +15,34 @@
 #include "defs.h"
 #include "proc.h"
 
+#define INT_MAX 4294967295
+
+void divmod(int x, int y, int *div, int *mod) {
+    int quotient = 0, modulus = x, divisor = y;
+
+    while (divisor <= modulus && divisor <= INT_MAX/2)
+        divisor <<= 1;
+
+    while (modulus >= y) {
+        while (divisor > modulus) {
+            divisor >>= 1;
+            quotient <<= 1;
+        }
+
+        modulus -= divisor;
+        quotient++;
+    }
+
+    while (divisor != y) {
+        quotient <<= 1;
+        divisor >>= 1;
+    }
+
+    *div = quotient;
+    *mod = modulus;
+}
+
+
 volatile int panicked = 0;
 
 // lock to avoid interleaving concurrent printf's.
@@ -37,10 +65,17 @@ printint(long long xx, int base, int sign)
   else
     x = xx;
 
+  int mod;
+  int res;
+
   i = 0;
+
   do {
-    buf[i++] = digits[x % base];
-  } while((x /= base) != 0);
+    divmod(x, base, &res, &mod);
+    
+    buf[i++] = digits[mod];
+    x = res;
+  } while(x != 0);
 
   if(sign)
     buf[i++] = '-';
@@ -64,12 +99,12 @@ int
 printf(char *fmt, ...)
 {
   va_list ap;
-  int i, cx, c0, c1, c2, locking;
+  int i, cx, c0, c1, c2;
   char *s;
 
-  locking = pr.locking;
-  if(locking)
-    acquire(&pr.lock);
+  //locking = pr.locking;
+  //if(locking)
+    //acquire(&pr.lock);
 
   va_start(ap, fmt);
   for(i = 0; (cx = fmt[i] & 0xff) != 0; i++){
@@ -153,8 +188,8 @@ printf(char *fmt, ...)
   }
   va_end(ap);
 
-  if(locking)
-    release(&pr.lock);
+  //if(locking)
+    //release(&pr.lock);
 
   return 0;
 }
@@ -164,6 +199,7 @@ panic(char *s)
 {
   pr.locking = 0;
   printf("panic: ");
+  printf("no se por que: ");
   printf("%s\n", s);
   panicked = 1; // freeze uart output from other CPUs
   for(;;)
@@ -173,6 +209,6 @@ panic(char *s)
 void
 printfinit(void)
 {
-  initlock(&pr.lock, "pr");
+  //initlock(&pr.lock, "pr");
   pr.locking = 1;
 }

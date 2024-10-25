@@ -1,5 +1,6 @@
 #ifndef __ASSEMBLER__
 
+/*
 // which hart (core) is this?
 static inline uint64
 r_mhartid()
@@ -8,7 +9,7 @@ r_mhartid()
   asm volatile("csrr %0, mhartid" : "=r" (x) );
   return x;
 }
-
+*/
 // Machine Status Register, mstatus
 
 #define MSTATUS_MPP_MASK (3L << 11) // previous mode.
@@ -16,7 +17,7 @@ r_mhartid()
 #define MSTATUS_MPP_S (1L << 11)
 #define MSTATUS_MPP_U (0L << 11)
 #define MSTATUS_MIE (1L << 3)    // machine-mode interrupt enable.
-
+/*
 static inline uint64
 r_mstatus()
 {
@@ -41,13 +42,13 @@ w_mepc(uint64 x)
 }
 
 // Supervisor Status Register, sstatus
-
+*/
 #define SSTATUS_SPP (1L << 8)  // Previous mode, 1=Supervisor, 0=User
 #define SSTATUS_SPIE (1L << 5) // Supervisor Previous Interrupt Enable
 #define SSTATUS_UPIE (1L << 4) // User Previous Interrupt Enable
 #define SSTATUS_SIE (1L << 1)  // Supervisor Interrupt Enable
 #define SSTATUS_UIE (1L << 0)  // User Interrupt Enable
-
+/*
 static inline uint64
 r_sstatus()
 {
@@ -77,6 +78,8 @@ w_sip(uint64 x)
   asm volatile("csrw sip, %0" : : "r" (x));
 }
 
+*/
+/*
 // Supervisor Interrupt Enable
 #define SIE_SEIE (1L << 9) // external
 #define SIE_STIE (1L << 5) // timer
@@ -216,7 +219,7 @@ w_pmpaddr0(uint64 x)
 {
   asm volatile("csrw pmpaddr0, %0" : : "r" (x));
 }
-
+*/
 // use riscv's sv39 page table scheme.
 #define SATP_SV39 (8L << 60)
 
@@ -224,6 +227,7 @@ w_pmpaddr0(uint64 x)
 
 // supervisor address translation and protection;
 // holds the address of the page table.
+/*
 static inline void 
 w_satp(uint64 x)
 {
@@ -293,7 +297,8 @@ intr_off()
 {
   w_sstatus(r_sstatus() & ~SSTATUS_SIE);
 }
-
+*/
+/*
 // are device interrupts enabled?
 static inline int
 intr_get()
@@ -341,7 +346,7 @@ sfence_vma()
   // the zero, zero means flush all TLB entries.
   asm volatile("sfence.vma zero, zero");
 }
-
+*/
 typedef uint64 pte_t;
 typedef uint64 *pagetable_t; // 512 PTEs
 
@@ -375,4 +380,6 @@ typedef uint64 *pagetable_t; // 512 PTEs
 // MAXVA is actually one bit less than the max allowed by
 // Sv39, to avoid having to sign-extend virtual addresses
 // that have the high bit set.
-#define MAXVA (1L << (9 + 9 + 9 + 12 - 1))
+//#define MAXVA (1L << (9 + 9 + 9 + 12 - 1))
+#define MAXVA 0xA0000000
+

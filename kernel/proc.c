@@ -64,7 +64,7 @@ procinit(void)
 int
 cpuid()
 {
-  int id = r_tp();
+  int id = 0 ;//r_tp();
   return id;
 }
 
@@ -82,10 +82,10 @@ mycpu(void)
 struct proc*
 myproc(void)
 {
-  push_off();
+  ////push_off();
   struct cpu *c = mycpu();
   struct proc *p = c->proc;
-  pop_off();
+  ////pop_off();
   return p;
 }
 
@@ -126,7 +126,7 @@ found:
   p->state = USED;
 
   // Allocate a trapframe page.
-  if((p->trapframe = (struct trapframe *)kalloc()) == 0){
+  /*if((p->trapframe = (struct trapframe *)kalloc()) == 0){
     freeproc(p);
     release(&p->lock);
     return 0;
@@ -138,7 +138,7 @@ found:
     freeproc(p);
     release(&p->lock);
     return 0;
-  }
+  }*/
 
   // Set up new context to start executing at forkret,
   // which returns to user space.
@@ -187,21 +187,21 @@ proc_pagetable(struct proc *p)
   // at the highest user virtual address.
   // only the supervisor uses it, on the way
   // to/from user space, so not PTE_U.
-  if(mappages(pagetable, TRAMPOLINE, PGSIZE,
+  /*if(mappages(pagetable, TRAMPOLINE, PGSIZE,
               (uint64)trampoline, PTE_R | PTE_X) < 0){
     uvmfree(pagetable, 0);
     return 0;
-  }
+  }*/
 
   // map the trapframe page just below the trampoline page, for
   // trampoline.S.
-  if(mappages(pagetable, TRAPFRAME, PGSIZE,
+  /*if(mappages(pagetable, TRAPFRAME, PGSIZE,
               (uint64)(p->trapframe), PTE_R | PTE_W) < 0){
     uvmunmap(pagetable, TRAMPOLINE, 1, 0);
     uvmfree(pagetable, 0);
     return 0;
   }
-
+*/
   return pagetable;
 }
 
@@ -228,29 +228,51 @@ uchar initcode[] = {
   0x00, 0x00, 0x00, 0x00
 };
 
+void first_process(void)
+{
+
+  release(&myproc()->lock);
+  fsinit(ROOTDEV);
+  printf("File system initialized\n");
+  for(;;){
+    struct proc *p = myproc();
+    p->state = RUNNABLE;
+    acquire(&p->lock);
+    sched();
+    release(&p->lock);
+  }
+
+  //char *argv[] = { "init", 0 };
+  //exec("/init", argv);
+
+
+}
+
 // Set up first user process.
+// Set up first user process (runs the shell program).
 void
 userinit(void)
 {
   struct proc *p;
 
+  // Allocate a process using allocproc()
   p = allocproc();
   initproc = p;
-  
-  // allocate one user page and copy initcode's instructions
-  // and data into it.
-  uvmfirst(p->pagetable, initcode, sizeof(initcode));
+  // Set the size of the process (just one page in this case).
   p->sz = PGSIZE;
 
-  // prepare for the very first "return" from kernel to user.
-  p->trapframe->epc = 0;      // user program counter
-  p->trapframe->sp = PGSIZE;  // user stack pointer
+  // Set up the process context for executing the initcode.
+  // Since there's no trapframe, directly set up the context.
+  p->context.ra = (uint64)first_process;  // Set return address to the start of initcode.
 
+  // Set process name and current working directory.
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
 
+  // Set the process to RUNNABLE so it can be scheduled.
   p->state = RUNNABLE;
 
+  // Release the process lock.
   release(&p->lock);
 }
 
@@ -452,7 +474,7 @@ scheduler(void)
     // The most recent process to run may have had interrupts
     // turned off; enable them to avoid a deadlock if all
     // processes are waiting.
-    intr_on();
+    //intr_on();
 
     int found = 0;
     for(p = proc; p < &proc[NPROC]; p++) {
@@ -474,8 +496,8 @@ scheduler(void)
     }
     if(found == 0) {
       // nothing to run; stop running on this core until an interrupt.
-      intr_on();
-      asm volatile("wfi");
+      //intr_on();
+      //asm volatile("wfi");
     }
   }
 }
@@ -490,21 +512,17 @@ scheduler(void)
 void
 sched(void)
 {
-  int intena;
+  //int intena;
   struct proc *p = myproc();
 
   if(!holding(&p->lock))
     panic("sched p->lock");
-  if(mycpu()->noff != 1)
-    panic("sched locks");
   if(p->state == RUNNING)
     panic("sched running");
-  if(intr_get())
-    panic("sched interruptible");
+  //if(intr_get())
+    //panic("sched interruptible");
 
-  intena = mycpu()->intena;
   swtch(&p->context, &mycpu()->context);
-  mycpu()->intena = intena;
 }
 
 // Give up the CPU for one scheduling round.
@@ -532,14 +550,15 @@ forkret(void)
     // File system initialization must be run in the context of a
     // regular process (e.g., because it calls sleep), and thus cannot
     // be run from main().
-    fsinit(ROOTDEV);
+    //fsinit(ROOTDEV);
 
     first = 0;
     // ensure other cores see first=0.
-    __sync_synchronize();
+    //__sync_synchronize();
   }
 
-  usertrapret();
+  //usertrapret();
+  sched();
 }
 
 // Atomically release lock and sleep on chan.
@@ -693,3 +712,53 @@ procdump(void)
     printf("\n");
   }
 }
+
+void virtualdisk_int() {
+  printf("Started reading disk \n");
+    for (;;) {
+      virtio_disk_intr();
+      struct proc *p = myproc();
+      p->state = RUNNABLE;
+      sched(); // Yield control to allow other processes to run.
+    }
+}
+
+void
+virtualdisk_process(){
+  struct proc *p;
+
+  p = allocproc();
+
+  safestrcpy(p->name, "virtual_iodisk_intr", sizeof(p->name));
+  p->cwd = namei("/");
+
+  p->state = RUNNABLE;
+  p->context.ra = (uint64)virtualdisk_int;
+
+  release(&p->lock);
+}
+
+void uart_console_loop() {
+    for (;;) {
+        uartintr();
+        struct proc *p = myproc();
+        p->state = RUNNABLE;
+        sched(); // Yield control to allow other processes to run.;
+  }
+}
+
+void
+inituart_process(){
+  struct proc *p;
+
+  p = allocproc();
+
+  safestrcpy(p->name, "uart_console_int", sizeof(p->name));
+  p->cwd = namei("/");
+
+  p->state = RUNNABLE;
+  p->context.ra = (uint64)uart_console_loop;
+
+  release(&p->lock);
+}
+

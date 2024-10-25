@@ -47,7 +47,7 @@ sys_sbrk(void)
     return -1;
   return addr;
 }
-
+/*
 uint64
 sys_sleep(void)
 {
@@ -68,7 +68,7 @@ sys_sleep(void)
   }
   release(&tickslock);
   return 0;
-}
+}*/
 
 uint64
 sys_kill(void)
@@ -79,6 +79,7 @@ sys_kill(void)
   return kill(pid);
 }
 
+/*
 // return how many clock tick interrupts have occurred
 // since start.
 uint64
@@ -91,3 +92,4 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+*/

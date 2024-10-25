@@ -111,7 +111,7 @@ uartputc(int c)
 void
 uartputc_sync(int c)
 {
-  push_off();
+  //push_off();
 
   if(panicked){
     for(;;)
@@ -123,7 +123,7 @@ uartputc_sync(int c)
     ;
   WriteReg(THR, c);
 
-  pop_off();
+  //pop_off();
 }
 
 // if the UART is idle, and a character is waiting
@@ -176,6 +176,7 @@ uartgetc(void)
 void
 uartintr(void)
 {
+  //printf("UART interruption\n");
   // read and process incoming characters.
   while(1){
     int c = uartgetc();
